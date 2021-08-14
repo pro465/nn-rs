@@ -52,10 +52,11 @@ impl Neuron {
             .zip(activations.iter())
             .for_each(|(x, a)| *x *= der(*a));
 
-
+        //getting bias update amount from total error of bias
         let total_error_of_bias: f64 = errors.iter().sum::<f64>() / errors.len() as f64;
         let bias_update = total_error_of_bias * lr + m * self.prev_bias_update;
 
+        //training bias and updating previous bias update
         self.bias -= bias_update;
         self.prev_bias_update = bias_update;
 
@@ -69,6 +70,8 @@ impl Neuron {
 
         //this is the reason behind Option<Vec<_>> instead of Vec<_>
         let mut prev = self.prev_weights_update.take().unwrap();
+
+        //training weights
 
         self.weights
             .iter_mut()
@@ -84,10 +87,13 @@ impl Neuron {
                 prev[i] = update;
             });
 
+        //updating previous updates to current updates
         self.prev_weights_update = Some(prev);
     }
 
     pub(crate) fn act(&self, data: &[f64]) -> f64 {
+        //weighted sum + bias
+
         self.weights
             .iter()
             .zip(data.iter())

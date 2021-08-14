@@ -1,3 +1,5 @@
+//helper functions
+
 use crate::Matrix;
 
 pub(crate) fn transpose(v: Vec<&'_ [f64]>) -> Matrix {

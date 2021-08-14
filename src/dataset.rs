@@ -1,3 +1,5 @@
+//type definaions for input-output pair and dataset
+//and macro for quick intialization
 pub type IOPair<const I: usize, const O: usize> = ([f64; I], [f64; O]);
 
 pub type DataSet<const I: usize, const O: usize> = Vec<IOPair<I, O>>;

@@ -1,37 +1,45 @@
-//dataset
 use crate::dataset::*;
-//default parameters
-use crate::defaults;
-//helper
-use crate::helper;
-//a struct representing a neuron
 use crate::neuron::Neuron;
-//to get "random" numbers
 use crate::rand::Rand;
-//a function-derivative pair
+use crate::helper;
+use crate::defaults;
 use crate::Func;
-//matrix typedef
 use crate::Matrix;
 
+//struct representing a neural network
 pub struct NeuralNetwork {
+    //lengths of input and output layers, to assert and help debug if unexpected things occur
     input_length: usize,
     output_length: usize,
 
+    //layers of neuronns and their activation-derivative function pair
     network: Vec<Vec<Neuron>>,
     funcs: Vec<Func>,
 
+    //learning rate
     lr: f64,
+
+    //momentum
     momentum: f64,
+
+    //error theshold to compare against total_err 
+    //and halt training process if total_err < err_thres
     err_thres: f64,
+
+    //total error of previous prediction
     total_err: f64,
 }
 
 impl NeuralNetwork {
+    //method to initialize a new neural network
     pub fn new(layout: &[usize]) -> Self {
+        //layout should have at least an input layer and an output layer
         assert!(layout.len() >= 2);
 
+        //"random" number generator
         let mut rand = Rand::new();
 
+        //input layer length
         let input_length = layout[0];
 
         let network: Vec<Vec<Neuron>> = layout
@@ -47,14 +55,18 @@ impl NeuralNetwork {
                     layer.push(Neuron::new(last_len, &mut rand));
                 }
 
+                // a new layer with num_neurons neurons
                 layer
             })
             .collect();
 
+        //default function-derivative pair per layer
         let mut funcs: Vec<Func> = layout.iter().map(|_| defaults::FUNC).collect();
 
+        //default output layer function-derivative pair
         *funcs.last_mut().unwrap() = (|x| x, |_| 1.);
 
+        //number of output layer's neurons
         let output_length = network[network.len() - 1].len();
 
         Self {
@@ -71,6 +83,7 @@ impl NeuralNetwork {
         }
     }
 
+    //public traiming interface
     pub fn train<const I: usize, const O: usize>(
         &mut self,
         num_times: u32,
@@ -89,34 +102,50 @@ impl NeuralNetwork {
         }
     }
 
+    //public prediction method
     pub fn predict(&self, data: Vec<f64>) -> Vec<f64> {
         assert_eq!(data.len(), self.input_length);
 
         self.predict_common(data).2
     }
 
+    //====
+    //setter interfaces
+    //====
+
+    //learning rate
     pub fn set_lr(&mut self, new_lr: f64) {
         assert!(0. < new_lr && new_lr <= 1.);
 
         self.lr = new_lr;
     }
 
+    //momentum
     pub fn set_momentum(&mut self, new_momentum: f64) {
         assert!((0. ..1.).contains(&new_momentum));
 
         self.momentum = new_momentum;
     }
 
+    //error threshold
     pub fn set_err_thres(&mut self, new_err_thres: f64) {
         assert!(new_err_thres > 0.);
 
         self.err_thres = new_err_thres;
     }
 
+    //sctivation-derivative pair for a particular layer
     pub fn set_act_func(&mut self, layer: usize, new_func: Func) {
         self.funcs[layer] = new_func;
     }
 
+    //====
+    //end setter interfaces
+    //====
+
+    //to train a single time
+
+    #[inline]
     fn train_single<const I: usize, const O: usize>(&mut self, dataset: &[IOPair<I, O>]) {
         let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().cloned().unzip();
 
@@ -175,6 +204,9 @@ impl NeuralNetwork {
         }
     }
 
+    //the core prediction function,
+    //which is reused by both train_single and predict method
+    
     #[inline]
     fn predict_common(&self, mut input: Vec<f64>) -> (Matrix, Matrix, Vec<f64>) {
         let mut a: Vec<Vec<f64>> = Vec::with_capacity(self.network.len());

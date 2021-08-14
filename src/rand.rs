@@ -1,3 +1,4 @@
+//helper for "random" number generation
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const KX: u32 = 123456789;
