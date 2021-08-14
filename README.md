@@ -9,5 +9,5 @@ see: <a href="./examples/simple.rs">./examples/simple.rs</a>
 ## Complex example
 coming soon
 
-#Contributing
+# Contributing
 All contributions are welcome!
