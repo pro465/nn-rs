@@ -66,7 +66,7 @@ impl Neuron {
                 .iter()
                 .zip(n.iter_mut())
                 .for_each(|(e, n)| *n += w * e)
-        })
+        });
 
         //this is the reason behind Option<Vec<_>> instead of Vec<_>
         let mut prev = self.prev_weights_update.take().unwrap();
