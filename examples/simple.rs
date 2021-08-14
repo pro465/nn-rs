@@ -1,3 +1,9 @@
+//this is a simple example that uses a neural network with 
+//   2 input layer neurons, 
+//   3 hidden layer neurons 
+//   and 1 output layer neuron 
+//to approximate a XOR function
+
 use nn::dataset;
 use nn::nn::NeuralNetwork;
 
