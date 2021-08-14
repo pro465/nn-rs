@@ -5,5 +5,6 @@ a minimalistic feedforward neural network library in Rust
 see: <a href="./examples/simple.rs">./examples/simple.rs</a>
 ## Complex example
 coming soon
+
 #Contributing
 All contributions are welcome!
