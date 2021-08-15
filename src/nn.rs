@@ -1,8 +1,8 @@
 use crate::dataset::*;
+use crate::defaults;
+use crate::helper;
 use crate::neuron::Neuron;
 use crate::rand::Rand;
-use crate::helper;
-use crate::defaults;
 use crate::Func;
 use crate::Matrix;
 
@@ -22,7 +22,7 @@ pub struct NeuralNetwork {
     //momentum
     momentum: f64,
 
-    //error theshold to compare against total_err 
+    //error theshold to compare against total_err
     //and halt training process if total_err < err_thres
     err_thres: f64,
 
@@ -176,8 +176,11 @@ impl NeuralNetwork {
         loop {
             let cond = layer_no == 0;
 
-            let prev_len = self.input_length * cond as usize
-                + self.network[layer_no - 1].len() * (!cond) as usize;
+            let prev_len = if cond {
+                self.input_length
+            } else {
+                self.network[layer_no - 1].len()
+            };
 
             let mut next = vec![vec![0.; expected_outputs.len()]; prev_len];
 
@@ -206,7 +209,7 @@ impl NeuralNetwork {
 
     //the core prediction function,
     //which is reused by both train_single and predict method
-    
+
     #[inline]
     fn predict_common(&self, mut input: Vec<f64>) -> (Matrix, Matrix, Vec<f64>) {
         let mut a: Vec<Vec<f64>> = Vec::with_capacity(self.network.len());
