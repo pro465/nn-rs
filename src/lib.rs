@@ -1,6 +1,6 @@
-//mofule for dataset typedefs
+//module for dataset typedefs
 pub mod dataset;
-//module for neural network API's
+//module for neural network API
 pub mod nn;
 
 //typedef for function-derivative pair
