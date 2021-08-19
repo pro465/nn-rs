@@ -31,26 +31,18 @@ impl Neuron {
         &mut self,
         
         //partial errors and partial errors for next iter(previous layer)
-        (errors, next): (&mut [f64], &mut [Vec<f64>]),
-
-        //previous layer's outputs and current node's activation per input in dataset
-        (outputs, activations): (&[Vec<f64>], Vec<f64>),
+        (errors, next): (&[f64], &mut [Vec<f64>]),
 
         //learning rate and momentum
         (lr, m): (f64, f64),
+        
+        //previous layer's outputs per input in dataset
+        outputs: &[Vec<f64>]
 
-        //derivative of current node's activation function
-        der: fn(f64) -> f64,
     ) {
         //no assummptions to introduce bugs, only assertions to help debug ;)
         assert_eq!(self.weights.len(), outputs.len());
         assert!(outputs.iter().all(|x| x.len() == errors.len()));
-
-        //to get complete error from partial error
-        errors
-            .iter_mut()
-            .zip(activations.iter())
-            .for_each(|(x, a)| *x *= der(*a));
 
         //getting bias update amount from total error of bias
         let total_error_of_bias: f64 = errors.iter().sum::<f64>() / errors.len() as f64;

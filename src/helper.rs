@@ -2,12 +2,12 @@
 
 use crate::Matrix;
 
-pub(crate) fn transpose(v: Vec<&'_ [f64]>) -> Matrix {
+pub(crate) fn transpose(v: &[&'_ [f64]]) -> Matrix {
     let columns = v.len();
     let rows = v[0].len();
     let mut res = vec![Vec::with_capacity(columns); rows];
 
-    for r in v.iter() {
+    for r in v {
         assert_eq!(r.len(), rows);
 
         for (i, &c) in r.iter().enumerate() {

@@ -1,4 +1,4 @@
-use crate::dataset::*;
+use crate::dataset::IOPair;
 use crate::defaults;
 use crate::helper;
 use crate::neuron::Neuron;
@@ -83,7 +83,7 @@ impl NeuralNetwork {
         }
     }
 
-    //public traiming interface
+    //public training interface
     pub fn train<const I: usize, const O: usize>(
         &mut self,
         num_times: u32,
@@ -103,6 +103,7 @@ impl NeuralNetwork {
     }
 
     //public prediction method
+    #[must_use]
     pub fn predict(&self, data: Vec<f64>) -> Vec<f64> {
         assert_eq!(data.len(), self.input_length);
 
@@ -147,18 +148,23 @@ impl NeuralNetwork {
 
     #[inline]
     fn train_single<const I: usize, const O: usize>(&mut self, dataset: &[IOPair<I, O>]) {
-        let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().cloned().unzip();
+        //extracting inputs and expected output from dataset
+        let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
 
+        //extracting activations and outputs per neuron per layer per input and output of final
+        //layer per input from the returned value of predict_common
         let iter = inputs.into_iter().map(|x| self.predict_common(x.to_vec()));
-
         let (a, o, outputs) = helper::unwrap(iter);
 
+        //to allow for less typing :)
         let lr = self.lr;
         let momentum = self.momentum;
 
+        //error to be passed to each neuron to teach themselves
         let mut errors =
             vec![Vec::with_capacity(expected_outputs.len()); expected_outputs[0].len()];
 
+        //error init
         for (o, e) in outputs.iter().zip(expected_outputs.iter()) {
             o.iter()
                 .zip(e.iter())
@@ -166,9 +172,10 @@ impl NeuralNetwork {
                 .for_each(|(i, (o, e))| errors[i].push(o - e));
         }
 
+        //total error, to be compared to err_thres and stop learning if it is tolerable
         self.total_err = errors
             .iter()
-            .map(|x| x.iter().cloned().map(f64::abs).sum::<f64>() / x.len() as f64)
+            .map(|x| x.iter().copied().map(f64::abs).sum::<f64>() / x.len() as f64)
             .sum::<f64>();
 
         let mut layer_no = self.network.len() - 1;
@@ -184,18 +191,23 @@ impl NeuralNetwork {
 
             let mut next = vec![vec![0.; expected_outputs.len()]; prev_len];
 
-            let prev_layer_o = helper::transpose(o.iter().map(|x| &*x[layer_no]).collect());
+            //layer-level constants
+            let prev_layer_o =
+                helper::transpose(&o.iter().map(|x| &*x[layer_no]).collect::<Vec<_>>());
             let (_func, der) = self.funcs[layer_no];
 
             for (i, ref mut error) in errors.iter_mut().enumerate() {
-                let curr_node_a = a.iter().map(|x| x[layer_no][i]).collect();
+                //current neuron's activation per IOPair
+                let curr_node_a = a.iter().map(|x| x[layer_no][i]);
 
-                self.network[layer_no][i].train(
-                    (error, &mut next),
-                    (&*prev_layer_o, curr_node_a),
-                    (lr, momentum),
-                    der,
-                )
+                //to get complete error from partial error
+                error
+                    .iter_mut()
+                    .zip(curr_node_a)
+                    .for_each(|(x, a)| *x *= der(a));
+
+                //asking each neuron to train itself
+                self.network[layer_no][i].train((error, &mut next), (lr, momentum), &*prev_layer_o)
             }
 
             if cond {
@@ -216,17 +228,21 @@ impl NeuralNetwork {
         let mut o: Vec<Vec<f64>> = vec![input.clone()];
 
         for (i, x) in self.network.iter().enumerate() {
+            //extracting activation function for current layer
             let (func, _der) = self.funcs[i];
 
+            //current layer's activation
             let curr_a: Vec<f64> = x.iter().map(|x| x.act(&input)).collect();
 
-            let curr_o: Vec<f64> = curr_a.iter().cloned().map(func).collect();
+            //current layer's output
+            let curr_o: Vec<f64> = curr_a.iter().copied().map(func).collect();
 
             a.push(curr_a);
             o.push(curr_o.clone());
             input = curr_o
         }
 
+        //(activations, output of neurons, output of output layer)
         (a, o, input)
     }
 }
