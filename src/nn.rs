@@ -2,7 +2,6 @@ use crate::dataset::IOPair;
 use crate::defaults;
 use crate::helper;
 use crate::neuron::Neuron;
-use crate::rand::Rand;
 use crate::Func;
 use crate::Matrix;
 
@@ -37,7 +36,7 @@ impl NeuralNetwork {
         assert!(layout.len() >= 2);
 
         //"random" number generator
-        let mut rand = Rand::new();
+        let mut rng = rand::thread_rng();
 
         //input layer length
         let input_length = layout[0];
@@ -52,7 +51,7 @@ impl NeuralNetwork {
                 let last_len = if i == 0 { input_length } else { layout[i - 1] };
 
                 for _ in 0..*num_neurons {
-                    layer.push(Neuron::new(last_len, &mut rand));
+                    layer.push(Neuron::new(last_len, &mut rng));
                 }
 
                 // a new layer with num_neurons neurons

@@ -1,11 +1,11 @@
-//for getting "random" numbers to initialize weight
-use crate::rand::Rand;
+//for getting random numbers to initialize weight
+use rand::prelude::*;
 
 //a struct representing a neuron
 pub(crate) struct Neuron {
     weights: Vec<f64>,
     bias: f64,
-    
+
     //previous weight and bias update, necessary to implement momentum
     //the Option<...> is needed to replace ".clone()" with less expensive ".take().unwrap()"
     prev_weights_update: Option<Vec<f64>>,
@@ -14,13 +14,13 @@ pub(crate) struct Neuron {
 
 impl Neuron {
     //for initializing a neuron
-    pub(crate) fn new(prev_layer_len: usize, rand: &mut Rand) -> Self {
+    pub(crate) fn new(prev_layer_len: usize, rand: &mut ThreadRng) -> Self {
         Self {
-            //initializing weights and bias  with "random" values between -0.5 and 0.5
+            //initializing weights and bias with 5.0 and -5.0
             weights: (0..prev_layer_len)
-                .map(|_| (rand.gen() as f64 - u32::MAX as f64 / 2.) / u32::MAX as f64)
+                .map(|_| rand.gen_range(-5. ..=5.))
                 .collect(),
-            bias: (rand.gen() as f64 - u32::MAX as f64 / 2.) / u32::MAX as f64,
+            bias: rand.gen_range(-5. ..=5.),
 
             prev_weights_update: Some(vec![0.; prev_layer_len]),
             prev_bias_update: 0.,
@@ -29,16 +29,15 @@ impl Neuron {
 
     pub(crate) fn train(
         &mut self,
-        
+
         //partial errors and partial errors for next iter(previous layer)
         (errors, next): (&[f64], &mut [Vec<f64>]),
 
         //learning rate and momentum
         (lr, m): (f64, f64),
-        
-        //previous layer's outputs per input in dataset
-        outputs: &[Vec<f64>]
 
+        //previous layer's outputs per input in dataset
+        outputs: &[Vec<f64>],
     ) {
         //no assummptions to introduce bugs, only assertions to help debug ;)
         assert_eq!(self.weights.len(), outputs.len());
