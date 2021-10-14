@@ -48,7 +48,7 @@ impl NeuralNetwork {
             .map(|(i, num_neurons)| {
                 let mut layer = Vec::new();
 
-                let last_len = if i == 0 { input_length } else { layout[i - 1] };
+                let last_len = layout[i - 1];
 
                 for _ in 0..*num_neurons {
                     layer.push(Neuron::new(last_len, &mut rng));
@@ -91,8 +91,11 @@ impl NeuralNetwork {
         assert_eq!(I, self.input_length);
         assert_eq!(O, self.output_length);
 
+        //extracting inputs and expected output from dataset
+        let iopairs: (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
+
         for _ in 0..num_times {
-            self.train_single(dataset);
+            self.train_single(&iopairs);
 
             let err = self.total_err;
             if err <= self.err_thres {
@@ -146,9 +149,13 @@ impl NeuralNetwork {
     //to train a single time
 
     #[inline]
-    fn train_single<const I: usize, const O: usize>(&mut self, dataset: &[IOPair<I, O>]) {
-        //extracting inputs and expected output from dataset
-        let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
+    fn train_single<const I: usize, const O: usize>(
+        &mut self,
+        (inputs, expected_outputs): &(Vec<[f64; I]>, Vec<[f64; O]>),
+    ) {
+        //error to be passed to each neuron to teach themselves
+        let mut errors =
+            vec![Vec::with_capacity(expected_outputs.len()); expected_outputs[0].len()];
 
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
@@ -158,10 +165,6 @@ impl NeuralNetwork {
         //to allow for less typing :)
         let lr = self.lr;
         let momentum = self.momentum;
-
-        //error to be passed to each neuron to teach themselves
-        let mut errors =
-            vec![Vec::with_capacity(expected_outputs.len()); expected_outputs[0].len()];
 
         //error init
         for (o, e) in outputs.iter().zip(expected_outputs.iter()) {
@@ -224,17 +227,24 @@ impl NeuralNetwork {
     #[inline]
     fn predict_common(&self, mut input: Vec<f64>) -> (Matrix, Matrix, Vec<f64>) {
         let mut a: Vec<Vec<f64>> = Vec::with_capacity(self.network.len());
-        let mut o: Vec<Vec<f64>> = vec![input.clone()];
+        let mut o: Vec<Vec<f64>> = Vec::with_capacity(self.network.len() + 1);
 
-        for (i, x) in self.network.iter().enumerate() {
+        o.push(input.clone());
+
+        for (i, layer) in self.network.iter().enumerate() {
             //extracting activation function for current layer
             let (func, _der) = self.funcs[i];
 
             //current layer's activation
-            let curr_a: Vec<f64> = x.iter().map(|x| x.act(&input)).collect();
-
+            let mut curr_a: Vec<f64> = Vec::with_capacity(layer.len());
             //current layer's output
-            let curr_o: Vec<f64> = curr_a.iter().copied().map(func).collect();
+            let mut curr_o: Vec<f64> = Vec::with_capacity(layer.len());
+
+            for neuron in layer.iter() {
+                let act = neuron.act(&input);
+                curr_a.push(act);
+                curr_o.push(func(act));
+            }
 
             a.push(curr_a);
             o.push(curr_o.clone());
