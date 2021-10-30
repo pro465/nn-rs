@@ -159,7 +159,7 @@ impl NeuralNetwork {
 
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
-        let iter = inputs.into_iter().map(|x| self.predict_common(*x));
+        let iter = inputs.into_iter().map(|x| self.predict_common(x.to_vec()));
         let (a, o, outputs) = helper::unwrap(iter);
 
         //to allow for less typing :)
