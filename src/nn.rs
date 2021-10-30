@@ -159,7 +159,7 @@ impl NeuralNetwork {
 
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
-        let iter = inputs.into_iter().map(|x| self.predict_common(x.to_vec()));
+        let iter = inputs.iter().map(|x| self.predict_common(x.to_vec()));
         let (a, o, outputs) = helper::unwrap(iter);
 
         //to allow for less typing :)
@@ -226,8 +226,8 @@ impl NeuralNetwork {
 
     #[inline]
     fn predict_common(&self, mut input: Vec<f64>) -> (Matrix, Matrix, Vec<f64>) {
-        let mut a: Vec<Vec<f64>> = Vec::with_capacity(self.network.len());
-        let mut o: Vec<Vec<f64>> = Vec::with_capacity(self.network.len() + 1);
+        let mut a = Vec::with_capacity(self.network.len());
+        let mut o = Vec::with_capacity(self.network.len() + 1);
 
         o.push(input.clone());
 
@@ -236,9 +236,9 @@ impl NeuralNetwork {
             let (func, _der) = self.funcs[i];
 
             //current layer's activation
-            let mut curr_a: Vec<f64> = Vec::with_capacity(layer.len());
+            let mut curr_a = Vec::with_capacity(layer.len());
             //current layer's output
-            let mut curr_o: Vec<f64> = Vec::with_capacity(layer.len());
+            let mut curr_o = Vec::with_capacity(layer.len());
 
             for neuron in layer.iter() {
                 let act = neuron.act(&input);
