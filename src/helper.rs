@@ -2,32 +2,29 @@
 
 use crate::Matrix;
 
-pub(crate) fn transpose(v: &[&'_ [f64]]) -> Matrix {
-    let columns = v.len();
-    let rows = v[0].len();
+pub(crate) fn transpose<'a>(mut v: impl Iterator<Item = &'a [f64]>, columns: usize) -> Matrix {
+    if columns == 0 {
+        return vec![];
+    }
+
+    let first = v.next().unwrap();
+
+    let rows = first.len();
     let mut res = vec![Vec::with_capacity(columns); rows];
+
+    let mut transpose_inner = |x: &'a [f64]| {
+        for (i, &c) in x.iter().enumerate() {
+            res[i].push(c);
+        }
+    };
+
+    transpose_inner(first);
 
     for r in v {
         assert_eq!(r.len(), rows);
 
-        for (i, &c) in r.iter().enumerate() {
-            res[i].push(c);
-        }
+        transpose_inner(r);
     }
-
-    res
-}
-
-pub(crate) fn unwrap(
-    iter: impl Iterator<Item = (Matrix, Matrix, Vec<f64>)>,
-) -> (Vec<Matrix>, Vec<Matrix>, Matrix) {
-    let mut res = (Vec::new(), Vec::new(), Matrix::new());
-
-    iter.for_each(|(a, o, y)| {
-        res.0.push(a);
-        res.1.push(o);
-        res.2.push(y);
-    });
 
     res
 }

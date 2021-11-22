@@ -1,5 +1,5 @@
 //for getting random numbers to initialize weight
-use rand::prelude::*;
+use crate::Rng;
 
 //a struct representing a neuron
 pub(crate) struct Neuron {
@@ -14,13 +14,11 @@ pub(crate) struct Neuron {
 
 impl Neuron {
     //for initializing a neuron
-    pub(crate) fn new(prev_layer_len: usize, rand: &mut ThreadRng) -> Self {
+    pub(crate) fn new(prev_layer_len: usize, rng: &mut impl Rng) -> Self {
         Self {
-            //initializing weights and bias with 5.0 and -5.0
-            weights: (0..prev_layer_len)
-                .map(|_| rand.gen_range(-5. ..=5.))
-                .collect(),
-            bias: rand.gen_range(-5. ..=5.),
+            //initializing weights and bias with random vals
+            weights: (0..prev_layer_len).map(|_| rng.gen()).collect(),
+            bias: rng.gen(),
 
             prev_weights_update: Some(vec![0.; prev_layer_len]),
             prev_bias_update: 0.,

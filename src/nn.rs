@@ -4,6 +4,9 @@ use crate::helper;
 use crate::neuron::Neuron;
 use crate::Func;
 use crate::Matrix;
+use crate::Rng;
+
+use std::iter::once;
 
 //struct representing a neural network
 pub struct NeuralNetwork {
@@ -31,12 +34,18 @@ pub struct NeuralNetwork {
 
 impl NeuralNetwork {
     //method to initialize a new neural network
-    pub fn new(layout: &[usize]) -> Self {
-        //layout should have at least an input layer and an output layer
-        assert!(layout.len() >= 2);
+    pub fn new(
+        // layout
+        layout: &[usize],
 
-        //"random" number generator
-        let mut rng = rand::thread_rng();
+        // RNG
+        rng: &mut impl Rng,
+    ) -> Self {
+        //layout should have at least an input layer and an output layer
+        assert!(
+            layout.len() >= 2,
+            "layout should have at least an input layer and an output layer"
+        );
 
         //input layer length
         let input_length = layout[0];
@@ -51,10 +60,10 @@ impl NeuralNetwork {
                 let last_len = layout[i - 1];
 
                 for _ in 0..*num_neurons {
-                    layer.push(Neuron::new(last_len, &mut rng));
+                    layer.push(Neuron::new(last_len, rng));
                 }
 
-                // a new layer with num_neurons neurons
+                // a new layer with `num_neurons` neurons
                 layer
             })
             .collect();
@@ -83,19 +92,40 @@ impl NeuralNetwork {
     }
 
     //public training interface
-    pub fn train<const I: usize, const O: usize>(
-        &mut self,
-        num_times: u32,
-        dataset: &[IOPair<I, O>],
-    ) {
-        assert_eq!(I, self.input_length);
-        assert_eq!(O, self.output_length);
+    pub fn train<'a, 'b: 'a>(&'a mut self, num_times: u32, dataset: &'b [IOPair<'b>]) {
+        assert!(dataset
+            .into_iter()
+            .all(|(i, o)| i.len() == self.input_length && o.len() == self.output_length));
 
         //extracting inputs and expected output from dataset
         let iopairs: (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
 
+        // cached vec, to avoid allocating multiple times
+        let mut cache: (Vec<Matrix>, Vec<Matrix>) = (
+            vec![
+                self.network
+                    .iter()
+                    .map(|x| Vec::with_capacity(x.len()))
+                    .collect();
+                dataset.len()
+            ],
+            vec![
+                once(self.input_length)
+                    .chain(self.network.iter().map(Vec::len))
+                    .map(|x| Vec::with_capacity(x))
+                    .collect();
+                dataset.len()
+            ],
+        );
+
+        cache
+            .1
+            .iter_mut()
+            .zip(iopairs.0.into_iter())
+            .for_each(|(o, i)| o[0].extend_from_slice(i));
+
         for _ in 0..num_times {
-            self.train_single(&iopairs);
+            self.train_single(&iopairs.1, (&mut cache.0, &mut cache.1));
 
             let err = self.total_err;
             if err <= self.err_thres {
@@ -106,10 +136,27 @@ impl NeuralNetwork {
 
     //public prediction method
     #[must_use]
-    pub fn predict(&self, data: Vec<f64>) -> Vec<f64> {
-        assert_eq!(data.len(), self.input_length);
+    pub fn predict(&self, mut input: Vec<f64>) -> Vec<f64> {
+        assert_eq!(input.len(), self.input_length);
 
-        self.predict_common(data).2
+        for (i, layer) in self.network.iter().enumerate() {
+            //extracting activation function for current layer
+            let (func, _der) = self.funcs[i];
+
+            // output of curr layer
+            let mut curr = Vec::with_capacity(layer.len());
+
+            for neuron in layer.iter() {
+                let output = func(neuron.act(&input));
+
+                curr.push(output)
+            }
+
+            // output of curr layer is gonna be the input of next layer
+            input = curr;
+        }
+
+        input
     }
 
     //====
@@ -137,7 +184,7 @@ impl NeuralNetwork {
         self.err_thres = new_err_thres;
     }
 
-    //sctivation-derivative pair for a particular layer
+    //activation-derivative pair for a particular layer
     pub fn set_act_func(&mut self, layer: usize, new_func: Func) {
         self.funcs[layer] = new_func;
     }
@@ -149,9 +196,10 @@ impl NeuralNetwork {
     //to train a single time
 
     #[inline]
-    fn train_single<const I: usize, const O: usize>(
+    fn train_single(
         &mut self,
-        (inputs, expected_outputs): &(Vec<[f64; I]>, Vec<[f64; O]>),
+        expected_outputs: &[&[f64]],
+        (a, o): (&mut [Matrix], &mut [Matrix]),
     ) {
         //error to be passed to each neuron to teach themselves
         let mut errors =
@@ -159,15 +207,17 @@ impl NeuralNetwork {
 
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
-        let iter = inputs.iter().map(|x| self.predict_common(x.to_vec()));
-        let (a, o, outputs) = helper::unwrap(iter);
+        let outputs = a
+            .into_iter()
+            .zip(o.into_iter())
+            .map(|x| self.predict_and_record(x));
 
         //to allow for less typing :)
         let lr = self.lr;
         let momentum = self.momentum;
 
         //error init
-        for (o, e) in outputs.iter().zip(expected_outputs.iter()) {
+        for (o, e) in outputs.zip(expected_outputs.iter()) {
             o.iter()
                 .zip(e.iter())
                 .enumerate()
@@ -194,13 +244,12 @@ impl NeuralNetwork {
             let mut next = vec![vec![0.; expected_outputs.len()]; prev_len];
 
             //layer-level constants
-            let prev_layer_o =
-                helper::transpose(&o.iter().map(|x| &*x[layer_no]).collect::<Vec<_>>());
+            let prev_layer_o = helper::transpose(o.into_iter().map(|x| &*x[layer_no]), a.len());
             let (_func, der) = self.funcs[layer_no];
 
             for (i, ref mut error) in errors.iter_mut().enumerate() {
                 //current neuron's activation per IOPair
-                let curr_node_a = a.iter().map(|x| x[layer_no][i]);
+                let curr_node_a = a.into_iter().map(|x| x[layer_no][i]);
 
                 //to get complete error from partial error
                 error
@@ -219,39 +268,35 @@ impl NeuralNetwork {
             errors = next;
             layer_no -= 1;
         }
+
+        // cleanup
+        for i in a {
+            i.into_iter().for_each(Vec::clear);
+        }
+
+        for i in 0..o.len() {
+            o[i].iter_mut().skip(1).for_each(Vec::clear);
+        }
     }
 
-    //the core prediction function,
-    //which is reused by both train_single and predict method
+    //like `predict`, but also records activations and outputs of each neuron
 
     #[inline]
-    fn predict_common(&self, mut input: Vec<f64>) -> (Matrix, Matrix, Vec<f64>) {
-        let mut a = Vec::with_capacity(self.network.len());
-        let mut o = Vec::with_capacity(self.network.len() + 1);
-
-        o.push(input.clone());
-
+    fn predict_and_record(&self, (a, o): (&mut Matrix, &mut Matrix)) -> Vec<f64> {
         for (i, layer) in self.network.iter().enumerate() {
             //extracting activation function for current layer
             let (func, _der) = self.funcs[i];
 
-            //current layer's activation
-            let mut curr_a = Vec::with_capacity(layer.len());
-            //current layer's output
-            let mut curr_o = Vec::with_capacity(layer.len());
-
             for neuron in layer.iter() {
-                let act = neuron.act(&input);
-                curr_a.push(act);
-                curr_o.push(func(act));
-            }
+                let act = neuron.act(&o[i]);
+                a[i].push(act);
 
-            a.push(curr_a);
-            o.push(curr_o.clone());
-            input = curr_o
+                let output = func(act);
+                o[i + 1].push(output);
+            }
         }
 
-        //(activations, output of neurons, output of output layer)
-        (a, o, input)
+        //output of output layer
+        o.last().unwrap().clone()
     }
 }

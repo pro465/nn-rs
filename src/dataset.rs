@@ -1,8 +1,8 @@
 //type definaions for input-output pair and dataset
 //and macro for quick intialization
-pub type IOPair<const I: usize, const O: usize> = ([f64; I], [f64; O]);
+pub type IOPair<'a> = (&'a [f64], &'a [f64]);
 
-pub type DataSet<const I: usize, const O: usize> = Vec<IOPair<I, O>>;
+pub type DataSet<'a> = Vec<IOPair<'a>>;
 
 #[macro_export]
 macro_rules! dataset {
@@ -10,8 +10,8 @@ macro_rules! dataset {
         let mut t = $crate::dataset::DataSet::new();
         $(
             t.push((
-                [$($k),*],
-                [$($v),*]
+                &[$($k),*],
+                &[$($v),*]
             ));
         )*
         t

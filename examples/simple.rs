@@ -5,10 +5,11 @@
 //to approximate a XOR function
 
 use nn::dataset;
+use nn::defaults::DefaultRng as Rng;
 use nn::nn::NeuralNetwork;
 
 fn main() {
-    let mut nn = NeuralNetwork::new(&[2, 3, 3, 1]);
+    let mut nn = NeuralNetwork::new(&[2, 3, 3, 1], &mut Rng::new());
 
     nn.set_err_thres(1e-8);
     nn.set_momentum(0.01);
