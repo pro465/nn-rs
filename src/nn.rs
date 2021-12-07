@@ -98,7 +98,7 @@ impl NeuralNetwork {
             .all(|(i, o)| i.len() == self.input_length && o.len() == self.output_length));
 
         //extracting inputs and expected output from dataset
-        let iopairs: (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
+        let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
 
         // cached vec, to avoid allocating multiple times
         let mut cache: (Vec<Matrix>, Vec<Matrix>) = (
@@ -121,11 +121,25 @@ impl NeuralNetwork {
         cache
             .1
             .iter_mut()
-            .zip(iopairs.0.into_iter())
+            .zip(inputs.into_iter())
             .for_each(|(o, i)| o[0].extend_from_slice(i));
 
+        //error to be passed to each neuron to teach themselves
+        let mut errors =
+            vec![Vec::with_capacity(expected_outputs.len()); expected_outputs[0].len()];
+
+        let mut next: Vec<Matrix> = once(self.input_length)
+            .chain(self.network.iter().map(Vec::len))
+            .take(self.network.len())
+            .map(|prev_len| vec![vec![0.; expected_outputs.len()]; prev_len])
+            .collect();
+
         for _ in 0..num_times {
-            self.train_single(&iopairs.1, (&mut cache.0, &mut cache.1));
+            self.train_single(
+                &expected_outputs,
+                (&mut cache.0, &mut cache.1),
+                (&mut errors, &mut next),
+            );
 
             let err = self.total_err;
             if err <= self.err_thres {
@@ -200,11 +214,8 @@ impl NeuralNetwork {
         &mut self,
         expected_outputs: &[&[f64]],
         (a, o): (&mut [Matrix], &mut [Matrix]),
+        (errors, next): (&mut Matrix, &mut [Matrix]),
     ) {
-        //error to be passed to each neuron to teach themselves
-        let mut errors =
-            vec![Vec::with_capacity(expected_outputs.len()); expected_outputs[0].len()];
-
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
         let outputs = a
@@ -233,15 +244,7 @@ impl NeuralNetwork {
         let mut layer_no = self.network.len() - 1;
 
         loop {
-            let cond = layer_no == 0;
-
-            let prev_len = if cond {
-                self.input_length
-            } else {
-                self.network[layer_no - 1].len()
-            };
-
-            let mut next = vec![vec![0.; expected_outputs.len()]; prev_len];
+            let next = &mut next[layer_no];
 
             //layer-level constants
             let prev_layer_o = helper::transpose(o.into_iter().map(|x| &*x[layer_no]), a.len());
@@ -258,15 +261,20 @@ impl NeuralNetwork {
                     .for_each(|(x, a)| *x *= der(a));
 
                 //asking each neuron to train itself
-                self.network[layer_no][i].train((error, &mut next), (lr, momentum), &*prev_layer_o)
+                self.network[layer_no][i].train((error, next), (lr, momentum), &*prev_layer_o)
             }
 
-            if cond {
+            if layer_no == 0 {
                 break;
             }
 
-            errors = next;
+            std::mem::swap(errors, next);
             layer_no -= 1;
+        }
+
+        for i in next {
+            std::mem::swap(errors, i);
+            i.into_iter().for_each(|x| x.fill(0.));
         }
 
         // cleanup
@@ -276,6 +284,10 @@ impl NeuralNetwork {
 
         for i in 0..o.len() {
             o[i].iter_mut().skip(1).for_each(Vec::clear);
+        }
+
+        for i in errors {
+            i.clear();
         }
     }
 
