@@ -27,9 +27,6 @@ pub struct NeuralNetwork {
     //error theshold to compare against total_err
     //and halt training process if total_err < err_thres
     err_thres: f64,
-
-    //total error of previous prediction
-    total_err: f64,
 }
 
 impl NeuralNetwork {
@@ -87,14 +84,13 @@ impl NeuralNetwork {
             lr: defaults::LEARNING_RATE,
             momentum: defaults::MOMENTUM,
             err_thres: defaults::ERR_THRESHOLD,
-            total_err: f64::INFINITY,
         }
     }
 
     //public training interface
-    pub fn train<'a, 'b: 'a>(&'a mut self, num_times: u32, dataset: &'b [IOPair<'b>]) {
+    pub fn train(&mut self, num_times: u32, dataset: &[IOPair]) {
         assert!(dataset
-            .into_iter()
+            .iter()
             .all(|(i, o)| i.len() == self.input_length && o.len() == self.output_length));
 
         //extracting inputs and expected output from dataset
@@ -112,7 +108,7 @@ impl NeuralNetwork {
             vec![
                 once(self.input_length)
                     .chain(self.network.iter().map(Vec::len))
-                    .map(|x| Vec::with_capacity(x))
+                    .map(Vec::with_capacity)
                     .collect();
                 dataset.len()
             ],
@@ -135,13 +131,12 @@ impl NeuralNetwork {
             .collect();
 
         for _ in 0..num_times {
-            self.train_single(
+            let err = self.train_single(
                 &expected_outputs,
                 (&mut cache.0, &mut cache.1),
                 (&mut errors, &mut next),
             );
 
-            let err = self.total_err;
             if err <= self.err_thres {
                 break;
             }
@@ -215,12 +210,12 @@ impl NeuralNetwork {
         expected_outputs: &[&[f64]],
         (a, o): (&mut [Matrix], &mut [Matrix]),
         (errors, next): (&mut Matrix, &mut [Matrix]),
-    ) {
+    ) -> f64 {
         //extracting activations and outputs per neuron per layer per input and output of final
         //layer per input from the returned value of predict_common
         let outputs = a
-            .into_iter()
-            .zip(o.into_iter())
+            .iter_mut()
+            .zip(o.iter_mut())
             .map(|x| self.predict_and_record(x));
 
         //to allow for less typing :)
@@ -236,7 +231,7 @@ impl NeuralNetwork {
         }
 
         //total error, to be compared to err_thres and stop learning if it is tolerable
-        self.total_err = errors
+        let total_err = errors
             .iter()
             .map(|x| x.iter().copied().map(f64::abs).sum::<f64>() / x.len() as f64)
             .sum::<f64>();
@@ -247,12 +242,12 @@ impl NeuralNetwork {
             let next = &mut next[layer_no];
 
             //layer-level constants
-            let prev_layer_o = helper::transpose(o.into_iter().map(|x| &*x[layer_no]), a.len());
+            let prev_layer_o = helper::transpose(o.iter().map(|x| &*x[layer_no]), a.len());
             let (_func, der) = self.funcs[layer_no];
 
             for (i, ref mut error) in errors.iter_mut().enumerate() {
                 //current neuron's activation per IOPair
-                let curr_node_a = a.into_iter().map(|x| x[layer_no][i]);
+                let curr_node_a = a.iter_mut().map(|x| x[layer_no][i]);
 
                 //to get complete error from partial error
                 error
@@ -274,21 +269,23 @@ impl NeuralNetwork {
 
         for i in next {
             std::mem::swap(errors, i);
-            i.into_iter().for_each(|x| x.fill(0.));
+            i.iter_mut().for_each(|x| x.fill(0.));
         }
 
         // cleanup
         for i in a {
-            i.into_iter().for_each(Vec::clear);
+            i.iter_mut().for_each(Vec::clear);
         }
 
-        for i in 0..o.len() {
-            o[i].iter_mut().skip(1).for_each(Vec::clear);
+        for i in o {
+            i.iter_mut().skip(1).for_each(Vec::clear);
         }
 
         for i in errors {
             i.clear();
         }
+
+        total_err
     }
 
     //like `predict`, but also records activations and outputs of each neuron
