@@ -94,7 +94,8 @@ impl NeuralNetwork {
             .all(|(i, o)| i.len() == self.input_length && o.len() == self.output_length));
 
         //extracting inputs and expected output from dataset
-        let (inputs, expected_outputs): (Vec<_>, Vec<_>) = dataset.iter().copied().unzip();
+        let (inputs, expected_outputs): (Vec<_>, Vec<_>) =
+            dataset.iter().map(|x| (&x.0, &x.1)).unzip();
 
         // cached vec, to avoid allocating multiple times
         let mut cache: (Vec<Matrix>, Vec<Matrix>) = (
@@ -207,7 +208,7 @@ impl NeuralNetwork {
     #[inline]
     fn train_single(
         &mut self,
-        expected_outputs: &[&[f64]],
+        expected_outputs: &[&Vec<f64>],
         (a, o): (&mut [Matrix], &mut [Matrix]),
         (errors, next): (&mut Matrix, &mut [Matrix]),
     ) -> f64 {

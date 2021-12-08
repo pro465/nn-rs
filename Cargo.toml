@@ -1,6 +1,6 @@
 [package]
 name = "nn"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Pro465 <namitapro0987@gmail.com>"]
 edition = "2018"
 
